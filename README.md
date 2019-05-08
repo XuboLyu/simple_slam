@@ -1,2 +1,2 @@
 # simple_slam
-A practical slam implementation
+A practical visual slam implementation

@@ -8,6 +8,21 @@ from skimage.transform import EssentialMatrixTransform
 def add_ones(x):
 	return np.concatenate([x, np.ones((x.shape[0], 1))], axis=1)
 
+def extractRt(E):
+	W = np.mat([[0,-1,0], [1,0,0],[0,0,1]],dtype=float)
+	U,d,Vt = np.linalg.svd(E)
+	assert np.linalg.det(U) > 0 
+
+	if np.linalg.det(Vt) < 0:
+		Vt *= -1.0
+	R = np.dot(np.dot(U,W),Vt)
+	if np.sum(R.diagonal()) < 0:
+		R = np.dot(np.dot(U,W.T), Vt)
+	t = U[:,2]
+	Rt = np.concatenate([R,t.reshape(3,1)],axis=1)
+
+	return Rt
+	
 f_est_avg = []
 
 
@@ -47,7 +62,8 @@ class FeatureExtractor(object):
 					kp1 = kps[m.queryIdx].pt
 					kp2 = self.last['kps'][m.trainIdx].pt
 					ret.append((kp1, kp2))
-
+		
+		Rt = None
 		# filtering using ransac and fundemental matrix
 		if len(ret) > 0:
 			ret = np.array(ret)
@@ -67,10 +83,12 @@ class FeatureExtractor(object):
 
 
 			ret = ret[inliers]
-			s,v,d = np.linalg.svd(model.params)
-			print(v)
-			
-
+			Rt = extractRt(model.params)
+	
+			# rotation and translation
+			print(Rt)
+	
+		
 		self.last = {'kps': kps, 'des': des}
 
-		return ret
+		return ret, Rt

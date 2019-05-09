@@ -9,15 +9,17 @@ cv2.namedWindow('test')
 W = 1920//2
 H = 1080//2
 
-F = 210 
+F = 250 
 K = np.array([[F,0,W//2],[0,F,H//2],[0,0,1]])
 print(K)
 fe = FeatureExtractor(K)
 
 def process_frame(img):
 	img = cv2.resize(img, (W, H))
-	matches  = fe.extract(img)
+	matches, pose  = fe.extract(img)
 
+	if pose is None:
+		return
 	# kp, des = orb.detectAndCompute(img,None)
 
 	for pt1, pt2 in matches:

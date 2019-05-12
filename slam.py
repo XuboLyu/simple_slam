@@ -1,8 +1,7 @@
 #!/usr/bin/python2.7
 
 import cv2
-from extractor import FeatureExtractor
-# import sdl2.ext
+from frame import Frame, extract, normalize, denormalize, match
 import numpy as np
 
 cv2.namedWindow('test')
@@ -12,22 +11,21 @@ H = 1080//2
 F = 250 
 K = np.array([[F,0,W//2],[0,F,H//2],[0,0,1]])
 print(K)
-fe = FeatureExtractor(K)
 
+frames = []
 def process_frame(img):
 	img = cv2.resize(img, (W, H))
-	matches, pose  = fe.extract(img)
-
-	if pose is None:
+	# frame object, include frame.pts and frame.des
+	frame = Frame(img, K)
+	frames.append(frame)
+	
+	if len(frames) <= 1:
 		return
-	# kp, des = orb.detectAndCompute(img,None)
 
-	for pt1, pt2 in matches:
-		# u1,v1 = map(lambda x: int(round(x)), pt1)
-		# u2,v2 = map(lambda x: int(round(x)), pt2)
-		
-		u1, v1 = fe.denormalize(pt1)
-		u2, v2 = fe.denormalize(pt2)
+	ret, Rt = match(frames[-1], frames[-2])
+	for pt1, pt2 in ret:
+		u1, v1 = denormalize(frame.K, pt1)
+		u2, v2 = denormalize(frame.K, pt2)
 
 		cv2.circle(img, (u1,v1), color=(0,255,0), radius=3)
 		cv2.line(img, (u1,v1), (u2,v2), color=(0,0,255))

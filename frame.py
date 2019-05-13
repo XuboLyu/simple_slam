@@ -5,6 +5,9 @@ from skimage.measure import ransac
 from skimage.transform import FundamentalMatrixTransform
 from skimage.transform import EssentialMatrixTransform
 
+
+IRt = np.eye(4)
+
 # utility functions
 def add_ones(x):
 	return np.concatenate([x, np.ones((x.shape[0], 1))], axis=1)
@@ -42,7 +45,9 @@ def extractRt(E):
 		R = np.dot(np.dot(U,W.T), Vt)
 	t = U[:,2]
 	Rt = np.concatenate([R,t.reshape(3,1)],axis=1)
-
+	
+	newrow = [0, 0, 0, 1]
+	Rt = np.vstack([Rt, newrow])
 	return Rt
 
 # match two different frames
@@ -50,19 +55,25 @@ def match(f1, f2):
 	
 	# matching
 	bf = cv2.BFMatcher(cv2.NORM_HAMMING)
-	ret = []
 	matches = bf.knnMatch(f1.des, f2.des, k=2)
 	
+	ret = []
+	idx1, idx2 = [], []
 	# Lowe's ratio check 
 	for m,n in matches:
 		# print(m,n)
 		if m.distance < 0.75 * n.distance:
+			idx1.append(m.queryIdx)
+			idx2.append(m.trainIdx)
+			
 			p1 = f1.pts[m.queryIdx]
 			p2 = f2.pts[m.trainIdx]
 			ret.append((p1, p2))
 	
-	assert len(ret) > 0
+	assert len(ret) > 10
 	ret = np.array(ret)
+	idx1 = np.array(idx1)
+	idx2 = np.array(idx2)
 	
 	# filtering using ransac and essential matrix
 	# print(ret)
@@ -73,28 +84,33 @@ def match(f1, f2):
 					min_samples=8, 
 					residual_threshold=0.005, 
 					max_trials=200)
-
-
+	
+	# print("inliers:", inliers)
+	
 	ret = ret[inliers]
 
 	# obtain rotation and translation 
 	Rt = extractRt(model.params)
 	# print(Rt)
 
-	return ret, Rt
+	# return the indices of matching points in two frames
+	return idx1[inliers], idx2[inliers], Rt
 
 class Frame(object):
-	def __init__(self, img, K):
+	def __init__(self, mapp, img, K):
 		# K is camera intrinsic param
 		self.K = K
 		self.Kinv = np.linalg.inv(self.K)
-
+		self.pose = IRt
+		
 		# Here the pts is not normalized yet
 		pts, self.des = extract(img)
 
 		# (normalized!!) pts for computing essential matrix
 		self.pts = normalize(self.Kinv, pts)
-	
+		
+		self.id = len(mapp.frames)
+		mapp.frames.append(self)
 
 
 

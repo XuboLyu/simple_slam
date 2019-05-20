@@ -4,6 +4,10 @@ import cv2
 from frame import Frame, extract, normalize, denormalize, match, IRt
 import numpy as np
 
+import OpenGL.GL as gl
+import pangolin
+
+
 cv2.namedWindow('test')
 W = 1920//2
 H = 1080//2
@@ -12,15 +16,76 @@ F = 250
 K = np.array([[F,0,W//2],[0,F,H//2],[0,0,1]])
 # print(K)
 
+from multiprocessing import Process, Queue
+
+
 class Map(object):
 	def __init__(self):
 		self.frames = []
 		self.points = []
+		# self.viewer_init()
+		self.state = None
+		self.q = Queue()
+
+		p = Process(target=self.viewer_thread, args=(self.q,))
+		p.daemon = True
+		p.start()
+
+	def viewer_thread(self, q):
+		self.viewer_init()
+		while 1:
+			self.viewer_refresh(q)
+
+	def viewer_init(self):
+		pangolin.CreateWindowAndBind('main',640,480)
+		gl.glEnable(gl.GL_DEPTH_TEST)
+
+		self.scam = pangolin.OpenGlRenderState(
+			pangolin.ProjectionMatrix(640,480,420,420,320,240,0.2,100),
+			pangolin.ModelViewLookAt(-2,2,-2,0,0,0,pangolin.AxisDirection.AxisY))
+		self.handler = pangolin.Handler3D(self.scam)
+		
+		# Create Interactive View in window
+		self.dcam = pangolin.CreateDisplay()
+		self.dcam.SetBounds(0.0, 1.0, 0.0, 1.0, -640.0/480.0)
+		self.dcam.SetHandler(self.handler)
+
+	def viewer_refresh(self, q):
+		if self.state == None or not q.empty():
+			self.state = q.get()
+		 
+		# turn state into points, np.asarray() keep all 'd' as array, not matrix
+		ppts = np.array([np.asarray(d)[:3,3] for d in self.state[0]])
+		spts = np.array(self.state[1])
+		# print(ppts.shape)
+		# print(spts.shape)
+
+		gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
+		gl.glClearColor(1.0, 1.0, 1.0, 1.0)
+		self.dcam.Activate(self.scam)
+
+		gl.glPointSize(10)
+		gl.glColor3f(0.0, 1.0, 0.0)
+		pangolin.DrawPoints(ppts)
+		
+		gl.glPointSize(2)
+		gl.glColor3f(0.0, 1.0, 0.0)
+		pangolin.DrawPoints(spts)
 	
+		pangolin.FinishFrame()
+
 	def display(self):
+		poses, pts = [], []
+
 		for f in self.frames:
-			print("current frame:", f.id)
-			print("current pose:", f.pose)
+			poses.append(f.pose)
+		for p in self.points:
+			pts.append(p.xyz)
+		
+		self.q.put((poses, pts))
+		# self.state = poses, pts
+		# self.viewer_refresh()
+
 mapp = Map()
 
 class Point(object):

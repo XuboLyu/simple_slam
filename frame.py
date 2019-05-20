@@ -6,8 +6,12 @@ from skimage.transform import FundamentalMatrixTransform
 from skimage.transform import EssentialMatrixTransform
 
 
-IRt = np.eye(4)
+# IRt = np.eye(4)
 
+IRt = np.array([[1.,0.,0.,0.],
+				[0.,1.,0.,0.],
+				[0.,0.,1.,0.],
+				[0.,0.,0.,1.]])
 # utility functions
 def add_ones(x):
 	return np.concatenate([x, np.ones((x.shape[0], 1))], axis=1)

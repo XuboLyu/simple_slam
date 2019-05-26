@@ -12,7 +12,7 @@ cv2.namedWindow('test')
 W = 1920//2
 H = 1080//2
 
-F = 250 
+F = 500 
 K = np.array([[F,0,W//2],[0,F,H//2],[0,0,1]])
 # print(K)
 
@@ -32,22 +32,24 @@ class Map(object):
 		p.start()
 
 	def viewer_thread(self, q):
-		self.viewer_init()
+		self.viewer_init(1024, 768)
 		while 1:
 			self.viewer_refresh(q)
 
-	def viewer_init(self):
-		pangolin.CreateWindowAndBind('main',640,480)
+	def viewer_init(self, w, h):
+		pangolin.CreateWindowAndBind('main',w,h)
 		gl.glEnable(gl.GL_DEPTH_TEST)
 
 		self.scam = pangolin.OpenGlRenderState(
-			pangolin.ProjectionMatrix(640,480,420,420,320,240,0.2,100),
-			pangolin.ModelViewLookAt(-2,2,-2,0,0,0,pangolin.AxisDirection.AxisY))
+			pangolin.ProjectionMatrix(w,h,420,420,w//2,h//2,0.2,10000),
+			pangolin.ModelViewLookAt(0,-10,-8,
+								 	 0, 0, 0,
+									 0, -1, 0))
 		self.handler = pangolin.Handler3D(self.scam)
 		
 		# Create Interactive View in window
 		self.dcam = pangolin.CreateDisplay()
-		self.dcam.SetBounds(0.0, 1.0, 0.0, 1.0, -640.0/480.0)
+		self.dcam.SetBounds(0.0, 1.0, 0.0, 1.0, -w/h)
 		self.dcam.SetHandler(self.handler)
 
 	def viewer_refresh(self, q):
@@ -55,22 +57,21 @@ class Map(object):
 			self.state = q.get()
 		 
 		# turn state into points, np.asarray() keep all 'd' as array, not matrix
-		ppts = np.array([np.asarray(d)[:3,3] for d in self.state[0]])
-		spts = np.array(self.state[1])
-		# print(ppts.shape)
-		# print(spts.shape)
+		# ppts = np.array([np.asarray(d)[:3,3] for d in self.state[0]])
+		# spts = np.array(self.state[1])
 
 		gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
 		gl.glClearColor(1.0, 1.0, 1.0, 1.0)
 		self.dcam.Activate(self.scam)
 
-		gl.glPointSize(10)
+		# draw pose
 		gl.glColor3f(0.0, 1.0, 0.0)
-		pangolin.DrawPoints(ppts)
+		pangolin.DrawCameras(self.state[0])
 		
+		# draw key points
 		gl.glPointSize(2)
-		gl.glColor3f(0.0, 1.0, 0.0)
-		pangolin.DrawPoints(spts)
+		gl.glColor3f(1.0, 0.0, 0.0)
+		pangolin.DrawPoints(self.state[1])
 	
 		pangolin.FinishFrame()
 
@@ -82,7 +83,7 @@ class Map(object):
 		for p in self.points:
 			pts.append(p.xyz)
 		
-		self.q.put((poses, pts))
+		self.q.put((np.array(poses), np.array(pts)))
 		# self.state = poses, pts
 		# self.viewer_refresh()
 
@@ -120,13 +121,14 @@ def process_frame(img):
 	idx1, idx2, Rt = match(f1, f2)
 	f1.pose = np.dot(Rt, f2.pose)
 	# print(Rt)
+		# print(spts.shape)
 	# print(pts.shape)
 	
 	# homogenous 3-D coords
 	pts4d = triangulate(f1.pose, f2.pose, f1.pts[idx1], f2.pts[idx2])
 	pts4d /= pts4d[:, 3:]
 	
-	# reject pts without enough "parallax"
+	# rject pts without enough "parallax"
 	# reject points behind the camera
 	good_pts4d = (np.abs(pts4d[:,3]) > 0.005) & (pts4d[:,2] > 0)
 	
@@ -151,7 +153,7 @@ def process_frame(img):
 	mapp.display()
 
 if __name__ == "__main__":
-	cap = cv2.VideoCapture("test.mp4")
+	cap = cv2.VideoCapture("test_ohio.mp4")
 	while cap.isOpened():
 		ret,frame = cap.read()
 		if ret == True:
